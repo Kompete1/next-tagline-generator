@@ -1,12 +1,18 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import styles from "./TaglineGenerator.module.css";
 
 type Inputs = {
   description: string;
   tone: string;
   audience: string;
+};
+
+type ApiResponse = {
+  taglines: string[];
+  metaDescription: string;
+  error?: string;
 };
 
 const tones = ["Professional", "Playful", "Premium", "Bold"] as const;
@@ -16,44 +22,6 @@ const audiences = [
   "Finance/banking",
   "Developers",
 ] as const;
-
-const toneOpeners: Record<string, string[]> = {
-  Professional: ["Precision for", "Built to help", "A smarter edge for"],
-  Playful: ["Make room for", "Spark some fun for", "Turn up the energy for"],
-  Premium: ["Elevate every mile for", "Designed with finesse for", "The luxury choice for"],
-  Bold: ["Unleash power for", "Drive harder with", "Make a statement for"],
-};
-
-const audienceFocus: Record<string, string> = {
-  General: "everyday brands",
-  "Motorsport fans": "race-day stories",
-  "Finance/banking": "modern finance teams",
-  Developers: "product builders",
-};
-
-const clampMeta = (value: string) =>
-  value.length <= 160 ? value : value.slice(0, 157).trimEnd() + "...";
-
-const buildTaglines = (inputs: Inputs) => {
-  const { tone, audience, description } = inputs;
-  const openers = toneOpeners[tone] ?? toneOpeners.Professional;
-  const focus = audienceFocus[audience] ?? "ambitious teams";
-  const trimmed = description.trim().replace(/\.$/, "");
-
-  const taglines = [
-    `${openers[0]} ${focus}.`,
-    `${openers[1]} ${focus}.`,
-    `${openers[2]} ${focus}.`,
-    `${trimmed} — tuned for ${focus}.`,
-    `${tone} impact for ${focus}.`,
-  ];
-
-  const meta = clampMeta(
-    `${trimmed}. Generate five fresh taglines in a ${tone.toLowerCase()} voice for ${focus}.`
-  );
-
-  return { taglines, meta };
-};
 
 export default function TaglineGenerator() {
   const [description, setDescription] = useState("");
@@ -67,7 +35,6 @@ export default function TaglineGenerator() {
   const [meta, setMeta] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [lastInputs, setLastInputs] = useState<Inputs | null>(null);
-  const timerRef = useRef<number | null>(null);
 
   const isValid = description.trim().length >= 20;
   const helperText = useMemo(() => {
@@ -78,22 +45,39 @@ export default function TaglineGenerator() {
     return `Add ${remaining} more character${remaining === 1 ? "" : "s"} to continue.`;
   }, [description]);
 
-  const handleGenerate = (inputs: Inputs) => {
+  const handleGenerate = async (inputs: Inputs) => {
     if (!inputs.description.trim()) {
       return;
     }
     setError("");
     setIsLoading(true);
-    if (timerRef.current) {
-      window.clearTimeout(timerRef.current);
-    }
-    timerRef.current = window.setTimeout(() => {
-      const output = buildTaglines(inputs);
-      setTaglines(output.taglines);
-      setMeta(output.meta);
+
+    try {
+      const response = await fetch("/api/tagline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(inputs),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as
+          | ApiResponse
+          | null;
+        setError(
+          data?.error || "Something went wrong. Please try again in a moment."
+        );
+        return;
+      }
+
+      const data = (await response.json()) as ApiResponse;
+      setTaglines(Array.isArray(data.taglines) ? data.taglines : []);
+      setMeta(typeof data.metaDescription === "string" ? data.metaDescription : "");
       setLastInputs(inputs);
+    } catch {
+      setError("We couldn't reach the server. Check your connection and retry.");
+    } finally {
       setIsLoading(false);
-    }, 500);
+    }
   };
 
   const handleCopy = async (value: string, id: string) => {
