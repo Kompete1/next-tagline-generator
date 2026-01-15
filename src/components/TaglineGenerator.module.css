@@ -101,6 +101,11 @@
   resize: vertical;
   min-height: 140px;
   background: #fffaf4;
+  color: #2f2620;
+}
+
+.textarea::placeholder {
+  color: #9b8c80;
 }
 
 .textarea:focus {
@@ -131,6 +136,7 @@
   background: #fff;
   padding: 10px 12px;
   font-size: 15px;
+  color: #2f2620;
 }
 
 .actions {
